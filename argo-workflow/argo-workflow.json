@@ -1,0 +1,56 @@
+{
+    "resourceKind": "Workflow",
+    "namespace": "argo",
+    "submitOptions": {
+        "entrypoint": "ci-pipeline"
+    },
+    "workflow": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Workflow",
+        "metadata": {
+            "generateName": "app-ci-pipeline-"
+        },
+        "spec": {
+            "entrypoint": "ci-pipeline",
+            "serviceAccountName": "argo-workflow-sa",
+            "templates": [
+                {
+                    "name": "ci-pipeline",
+                    "dag": {
+                        "tasks": [
+                            {
+                                "name": "push-image",
+                                "template": "push"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "push",
+                    "container": {
+                        "image": "docker:20.10",
+                        "command": ["/bin/sh", "-c"],
+                        "args": [
+                            "apk add --no-cache git \ngit clone https://github.com/datawire/hello-world-python.git /app-py\ncd /app-py\nmkdir -p /etc/docker\necho '{ \"insecure-registries\": [\"10.106.191.220:5000\"] }' > /etc/docker/daemon.json\nsleep 5\ndocker login 10.106.191.220:5000 -u \"admin\" -p \"admin\"\ndocker build -t my-app2:latest .\ndocker tag my-app2:latest 10.106.191.220:5000/backstage/my-app2:latest\ndocker push 10.106.191.220:5000/backstage/my-app2:latest\necho \"Image pushed successfully!\"\n"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "docker-socket",
+                                "mountPath": "/var/run/docker.sock"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "volumes": [
+                {
+                    "name": "docker-socket",
+                    "hostPath": {
+                        "path": "/var/run/docker.sock",
+                        "type": "Socket"
+                    }
+                }
+            ]
+        }
+    }
+}
