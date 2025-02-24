@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: app-ci-pipeline-
+spec:
+  entrypoint: ci-pipeline
+  serviceAccountName: argo-workflow-sa  # Ensure this SA has the needed permissions
+
+  templates:
+    - name: ci-pipeline
+      dag:
+        tasks:
+          - name: push-image
+            template: push
+
+    - name: push
+      container:
+        image: docker:20.10
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            apk add --no-cache git 
+            git clone https://github.com/datawire/hello-world-python.git /app-py
+            cd /app-py
+            mkdir -p /etc/docker
+            echo '{ "insecure-registries": ["10.106.191.220:5000"] }' > /etc/docker/daemon.json
+            sleep 5     # Give it time to start
+            docker login 10.106.191.220:5000 -u "admin" -p "admin"
+            docker build -t my-app2:latest .
+            docker tag my-app2:latest 10.106.191.220:5000/backstage/my-app2:latest
+            docker push 10.106.191.220:5000/backstage/my-app2:latest
+            echo "Image pushed successfully!"
+        volumeMounts:
+          - name: docker-socket
+            mountPath: /var/run/docker.sock  # Mount the Docker socket to the container
+
+  volumes:
+    - name: docker-socket
+      hostPath:
+        path: /var/run/docker.sock  # Path to the Docker socket on the host machine
+        type: Socket
